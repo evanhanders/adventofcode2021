@@ -14,7 +14,7 @@ fn main() {
             if let Ok(ip) = line {
 
                 let mut characters = ip.chars();
-                for i in 0..chars-1 {
+                for i in 0..chars {
                     if Some('0') == characters.next(){
                         zeros[i] += 1;
                     }
@@ -23,9 +23,26 @@ fn main() {
                 count += 1;
             }
         }
-    for i in 0..chars-1 {
-        println!("{}, {}", zeros[i], count);
-    }
+    
+        // find gamma (most common) and epsilon (least common) bits
+        let mut gamma = String::new();
+        let mut epsilon = String::new();
+        for i in 0..chars {
+            println!("{}, {}", zeros[i], count);
+            if zeros[i] > count/2 {
+                // zero is most common
+                gamma.push_str("0");
+                epsilon.push_str("1");
+            } else {
+                // one is most common
+                gamma.push_str("1");
+                epsilon.push_str("0");
+            }
+        }
+        println!("gamma bin {}, epsilon bin {}", gamma, epsilon);
+        let gamma_int = isize::from_str_radix(&gamma[..], 2).unwrap();
+        let epsilon_int = isize::from_str_radix(&epsilon[..], 2).unwrap();
+        println!("gamma {}, epsilon {}, power consumption {}", gamma_int, epsilon_int, gamma_int*epsilon_int)
     }
 }
 
