@@ -1,8 +1,20 @@
 use std::fs::File;
 use std::io::{self, BufRead};
 use std::path::Path;
+use std::collections::HashMap;
 
-const DAYS : usize = 80;
+const CHARS : [char; 7] = ['a', 'b', 'c', 'd', 'e', 'f',  'g'];
+const ZERO : [bool; 7]  = [true, true, true, false, true, true, true];
+const ONE : [bool; 7]   = [false, false, true, false, false, true, false];
+const TWO: [bool; 7]    = [true, false, true, true, true, false, true];
+const THREE: [bool; 7]  = [true, false, true, true, false, true, true];
+const FOUR: [bool; 7]   = [false, true, true, true, false, true, false];
+const FIVE: [bool; 7]   = [true, true, false, true, false, true, true];
+const SIX: [bool; 7]    = [true, true, false, true, true, true, true];
+const SEVEN: [bool; 7]  = [true, false, true, false, false, true, false];
+const EIGHT: [bool; 7]  = [true; 7];
+const NINE: [bool; 7]   = [true, true, true, true, false, true, true];
+const MAPS : [[bool;7];10] = [ZERO, ONE, TWO, THREE, FOUR, FIVE, SIX, SEVEN, EIGHT, NINE];
 
 pub struct ParsedLine {
     line : String,
@@ -48,161 +60,166 @@ impl ParsedLine {
 
 }
 
+
 pub struct DigitCode {
     line : ParsedLine,
-    digit_chars : [String; 10],
+    possibilities : Vec<HashMap<char, bool>>,
     positions : [char; 7],
-    easy_strings : [String; 4],
     unique_lens : [u8; 4],
     code : String
 }
 
 impl DigitCode {
     fn new(line : ParsedLine) -> DigitCode {
+        let mut possibilities : Vec<HashMap<char, bool>> = Vec::new();
         let mut positions : [char; 7] = Default::default();
-        let mut easy_strings: [String; 4] = Default::default();
-        let mut digit_chars: [String; 10] = Default::default();
         let mut code : String = String::new();
         let unique_lens : [u8; 4] = [2, 3, 4, 7];
-        DigitCode { line : line, positions : positions, easy_strings : easy_strings, unique_lens : unique_lens, digit_chars : digit_chars, code : code }
+
+        for i in 0..7 {
+            let mut changeable = HashMap::new();
+            possibilities.push(changeable);
+            for c in CHARS {
+                possibilities[i].insert(c, true);
+            }
+        }
+        DigitCode { line : line, positions : positions, unique_lens : unique_lens, code : code, possibilities : possibilities}
     }
 
-    fn read_easy(&mut self) {
-        // 0 - 6 chars
-        // 1 - 2 chars
-        // 2 - 5 chars
-        // 3 - 5 chars
-        // 4 - 4 chars
-        // 5 - 5 chars
-        // 6 - 6 chars
-        // 7 - 3 chars
-        // 8 - 7 chars
-        // 9 - 6 chars
-        // positions
-        // 0 - done
-        // 1 - picked by 3
-        // 2 - done
-        // 3 - done  
-        // 4 - only missing from one five-length.
-        // 5 - picked by 2.
-        // 6
+    fn read(&mut self) {
         for numcode in self.line.digits.iter() {
-           if numcode.len() == 2 {
-               self.easy_strings[0] = numcode.to_owned();
+            if numcode.len() == 2 {
+                for c in CHARS {
+                    if numcode.contains(c) {
+                        for pos in [0, 1, 3, 4, 6] {
+                           self.possibilities[pos].insert(c, false);
+                        }
+                    } else {
+                        for pos in [2, 5] {
+                           self.possibilities[pos].insert(c, false);
+                        }
+                    }
+               }
            } else if numcode.len() == 4 {
-               self.easy_strings[1] = numcode.to_owned();
+                for c in CHARS {
+                    if numcode.contains(c) {
+                        for pos in [0, 4, 6] {
+                           self.possibilities[pos].insert(c, false);
+                        }
+                    } else {
+                        for pos in [1, 2, 3, 5] {
+                           self.possibilities[pos].insert(c, false);
+                        }
+                    }
+               }
            } else if numcode.len() == 3 {
-               self.easy_strings[2] = numcode.to_owned();
-           } else if numcode.len() == 7 {
-               self.easy_strings[3] = numcode.to_owned();
-           }
+                for c in CHARS {
+                    if numcode.contains(c) {
+                        for pos in [1, 3, 4, 6] {
+                           self.possibilities[pos].insert(c, false);
+                        }
+                    } else {
+                        for pos in [0, 2, 5] {
+                           self.possibilities[pos].insert(c, false);
+                        }
+                    }
+               }
+
+               for pos in [1, 3, 4, 6] {
+                   for c in numcode.chars() {
+                       self.possibilities[pos].insert(c, false);
+                   }
+               }
+           } 
         }
-        //get position 0
-        for c in self.easy_strings[2].chars() {
-            if !self.easy_strings[0].contains(c) {
-                self.positions[0] = c;
-                println!("{}", c);
+
+        // Trivially get position 0 from easy strings
+        for (i, (c, b)) in self.possibilities[0].iter().enumerate() {
+            if *b {
+                self.positions[0] = *c;
             }
         }
-        //get position 2
-        for c in self.easy_strings[0].chars() {
+        for i in 1..7 {
+            self.possibilities[0].insert(self.positions[0], false);
+        }
+
+        //get position 2 by diffing 6-length strings compared to 1, 
+        //then trivially get 5 from easy string
+        for (i1, (c1,b1)) in self.possibilities[2].iter().enumerate() {
             for numcode in self.line.digits.iter() {
-                if numcode.len() == 6 && !numcode.contains(c) {
-                    self.positions[2] = c;
-                    println!("{}", c);
+                if numcode.len() == 6 && !numcode.contains(*c1) && *b1 {
+                    self.positions[2] = *c1;
                 }
             }
         }
-        //trivially get position 5
-        for c in self.easy_strings[0].chars() {
-            if c != self.positions[2] {
-                self.positions[5] = c;
-                    println!("{}", c);
+        self.possibilities[5].insert(self.positions[2], false);
+        for (i, (c,b)) in self.possibilities[5].iter().enumerate() {
+            if *b {
+                self.positions[5] = *c;
             }
         }
-        //get position 3
-        for c in self.easy_strings[1].chars() {
+
+        //get position 3 by diffing 6-length strings compared to 4, 
+        //then trivially get 1 from easy string
+        for (i1, (c1,b1)) in self.possibilities[3].iter().enumerate() {
             for numcode in self.line.digits.iter() {
-                if numcode.len() == 6 && !numcode.contains(c)  && numcode.contains(self.positions[2]) {
-                    self.positions[3] = c;
-                    println!("{}", c);
+                if numcode.len() == 6 && !numcode.contains(*c1) && *b1 {
+                    self.positions[3] = *c1;
                 }
             }
         }
-        //trivially get position 1
-        for c in self.easy_strings[1].chars() {
-            if c != self.positions[2] && c != self.positions[3] && c != self.positions[5] {
-                self.positions[1] = c;
-                    println!("{}", c);
+        self.possibilities[1].insert(self.positions[3], false);
+        for (i, (c,b)) in self.possibilities[1].iter().enumerate() {
+            if *b {
+                self.positions[1] = *c;
             }
         }
-        //get position 4
-        for c in self.easy_strings[3].chars() {
+        //get position 4 -- only one five-length string has it.
+        for (i, (c,b)) in self.possibilities[4].iter().enumerate() {
+            let mut contained_in = 0;
             for numcode in self.line.digits.iter() {
-                if numcode.len() == 5 && !numcode.contains(c) {
-                    if !self.positions.contains(&c) {
-                        self.positions[4] = c;
-                        println!("{}", c);
+                if numcode.len() == 6 && !numcode.contains(*c) && *b {
+                    contained_in += 1;
+                }
+            }
+            if contained_in == 1 {
+                self.positions[4] = *c;
+                break;
+            }
+        }
+        self.possibilities[6].insert(self.positions[4], false);
+        for (i, (c,b)) in self.possibilities[6].iter().enumerate() {
+            if *b {
+                self.positions[6] = *c;
+            }
+        }
+
+        for digit in self.line.code.iter() {
+            let mut thisline : [bool; 7] = [false; 7];
+            let mut found : bool = false;
+            for c1 in digit.chars() {
+                for (i, c2) in self.positions.iter().enumerate() {
+                    if c1 == *c2 {
+                        thisline[i] = true;
                     }
                 }
             }
-        }
-        // final position
-        let chars = ['a', 'b', 'c', 'd', 'e', 'f',  'g'];
-        for c in chars.iter() {
-            if !self.positions.contains(&c) {
-                self.positions[6] = c.to_owned();
-                        println!("{}", c);
-            }
-        }
-
-        for (i, c) in self.positions.iter().enumerate() {
-            if i == 0 {
-                for j in [0, 2, 3, 5, 6, 7, 8, 9] {
-                    self.digit_chars[j].push(*c);
+            for (i, m) in MAPS.iter().enumerate() {
+                for j in 0..7 {
+                        if m[j] != thisline[j] {
+                            break;
+                        } else if j == 6 {
+                            found = true;
+                        }
+                }
+                if found {
+                    self.code += &i.to_string();
+                    break;
                 }
             }
-            if i == 1 {
-                for j in [0, 4, 5, 6, 8, 9] {
-                    self.digit_chars[j].push(*c);
-                }
-            }
-            if i == 2 {
-                for j in [0, 1, 2, 3, 4, 7, 8, 9] {
-                    self.digit_chars[j].push(*c);
-                }
-            }
-            if i == 3 {
-                for j in [2, 3, 4, 5, 6, 8, 9] {
-                    self.digit_chars[j].push(*c);
-                }
-            }
-            if i == 4 {
-                for j in [0, 2, 6, 8] {
-                    self.digit_chars[j].push(*c);
-                }
-            }
-            if i == 5 {
-                for j in [0, 1, 3, 4, 5, 6, 7, 8, 9] {
-                    self.digit_chars[j].push(*c);
-                }
-            }
-            if i == 6 {
-                for j in [0, 2, 3, 5, 6, 8, 9] {
-                    self.digit_chars[j].push(*c);
-                }
-            }
-        }
-
-        for s in self.digit_chars.iter() {
-            println!("{}", s);
-        }
-
-
-        for codedigit in self.line.code.iter() {
-            println!("need to convert to digits: code {}", codedigit);
         }
     }
+
 
     fn print_eight(&mut self) {
         println!(" {}{}{} ", self.positions[0], self.positions[0], self.positions[0]);
@@ -220,49 +237,23 @@ impl DigitCode {
 
 fn main() {
     let mut raw_lines : Vec<ParsedLine> = Vec::new();
-    let mut counter : u32 = 0;
+    let mut add_counter : u128 = 0;
     // File hosts must exist in current path before this produces output
-    if let Ok(lines) = read_lines("./fake_input.txt") {
+    if let Ok(lines) = read_lines("./input.txt") {
         // Consumes the iterator, returns an (Optional) String
         for line in lines {
             if let Ok(ip) = line {
                 println!("{}", ip);
                 let mut thisline = ParsedLine::new(ip);
                 let mut digit = DigitCode::new(thisline);
-                digit.read_easy();
-                digit.print_eight();
-//                counter += thisline.count_unique() as u32;
-//                raw_lines.push(thisline);
+                digit.read();
+                println!("{}", digit.code);
+//                digit.print_eight();
+                add_counter += digit.code.parse::<u128>().unwrap();
             }
         }
     }
-    println!("there are {} unique vals", counter);
-//
-//    for count in input.split(",").collect::<Vec<&str>>().iter() {
-//        let mut fish = LanternFish::new();
-//        fish.counter = count.parse::<u8>().unwrap();
-//        school.push(fish);
-//    }
-//
-//    let mut newfish = 0;
-//    for d in 0..DAYS {
-//        println!("{}", d);
-//        for i in 0..school.len() {
-//            if school[i as usize].age() {
-//                newfish += 1;
-//            }
-//        }
-//        for i in 0..newfish {
-//            school.push(LanternFish::new());
-//        }
-//        newfish = 0;
-//        println!("{}", school.len());
-//    }
-//    for i in 0..school.len() {
-//        print!("{},", school[i as usize].counter);
-//    }
-//    println!("");
-//    println!("there are {} fish", school.len());
+    println!("add counter {}", add_counter);
 }
 
 // The output is wrapped in a Result to allow matching on errors
